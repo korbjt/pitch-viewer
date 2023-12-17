@@ -18,12 +18,13 @@
     "build:html": "posthtml -c posthtml.json",
     "watch:html": "onchange \"src/views\" -- npm run build:html",
     "build:images": "imagemin src/images/**/* --out-dir=dist/images",
-    "watch:images": "onchange \"src/images\" -- npm run build:images"    
+    "watch:images": "onchange \"src/images\" -- npm run build:images"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "pitchy": "^4.0.7"
+    "pitchy": "^4.0.7",
+    "vexflow": "^4.2.3"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.23.5",
