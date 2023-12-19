@@ -24,7 +24,7 @@
   "license": "ISC",
   "dependencies": {
     "pitchy": "^4.0.7",
-    "vexflow": "^4.2.3"
+    "teoria": "^2.5.0"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.23.5",

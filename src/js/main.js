@@ -1,10 +1,14 @@
 import { PitchDetector } from 'pitchy';
 
-import { Renderer, Stave } from 'vexflow';
+import * as teoria from 'teoria';
 
-console.log('I\'m some javascript');
+var a4 = teoria.note('a4');
+console.log(a4);
 
 var history = [];
+
+// detect pitch
+// find closest note based on scale
 
 function draw() {
     if(history.length < 1) {
@@ -12,52 +16,53 @@ function draw() {
     }
     var canvas = document.getElementById('pitches');
 
-    const stave = new Stave(10, 0, canvas.width-20);
-    stave.addClef('treble');
-    stave.addKeySignature('C');
-
     var ctx = canvas.getContext('2d');  
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.reset();
+    ctx.lineWidth=2;
 
-    const renderCtx = new Renderer(canvas, Renderer.Backends.CANVAS);
-    stave.setContext(renderCtx.getContext()).draw();
+    var segmentSize = (canvas.width/4) / 100;
+    var lineStart = (canvas.width / 2) - history.length * segmentSize;
 
-    console.log('Y:' + stave.getY());
-    console.log('Y:' + stave.getTopLineTopY());
-    console.log('Y:' + stave.getBottomLineY());
-    console.log('Y:' + stave.getBottomLineBottomY());
-    stave.getBottomY();
-
-    //top line = F = 698.46
-    //bottom line = E = 329.63
-
-    var scale = (stave.getBottomLineBottomY() - stave.getTopLineTopY()) / (698.46-329.63);
-    console.log('scale: ' + scale);
-    var grd = ctx.createLinearGradient(0, 0, 200, 0);
-
-    var j = 0;
-
-    ctx.lineWidth=3;
-    ctx.beginPath();
-    history.forEach((value) => {
-        document.getElementById('freq').textContent = value[0];
-        grd.addColorStop(j/100.0, `rgba(255,0,0,${value[1]})`);
-        ctx.lineTo(2*j, stave.getBottomLineBottomY() - scale * (value[0]-329.63));
-        j++;
-    });
+    var grd = ctx.createLinearGradient(canvas.width/4, 0, canvas.width/2, 0);
+    grd.addColorStop(0, 'rgba(0,0,0,0.0)');
+    grd.addColorStop(1, 'rgba(0,0,0,0.5)');
     ctx.strokeStyle = grd;
-    ctx.stroke();
 
-    ctx.moveTo(500, stave.getYForNote(1));
-    ctx.lineTo(600, stave.getYForNote(1));
+    ctx.beginPath();
+    var yVal;
+    history.forEach((value, i) => {
+        yVal = canvas.height - (value[0] * canvas.height/3000) - 50;
+        ctx.lineTo(lineStart + (i * segmentSize), yVal);
+    });
     ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.arc(canvas.width/2, yVal, 10, 0, 2 * Math.PI);
+    grd = ctx.createRadialGradient(canvas.width/2, yVal, 1, canvas.width/2, yVal, 15);
 
-    ctx.moveTo(600, stave.getYForNote(1.5));
-    ctx.lineTo(700, stave.getYForNote(1.5));
-    ctx.stroke();
+    var lastNote = history[history.length - 1];
+    if (lastNote[1] > .95) {
+        var fromFreq = teoria.note.fromFrequency(lastNote[0]);
+        document.getElementById('note').textContent = fromFreq.note.name();
+        document.getElementById('freq').textContent = lastNote[0];
+        if (fromFreq.cents < 6) {
+            grd.addColorStop(0, 'green');
+        } else if (fromFreq.cents < 10) {
+            grd.addColorStop(0, 'orange');
+        } else {
+            grd.addColorStop(0, 'red');
+        }
+        grd.addColorStop(0.5, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grd;
+        ctx.fill();
+    } else {
+        document.getElementById('note').textContent = '';
+        document.getElementById('freq').textContent = '';
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+     console.log('Hello');
     navigator.mediaDevices.getUserMedia({audio: true}).then((stream) => {
         var ctx = new AudioContext({});
         var analyzer = new AnalyserNode(ctx, {
@@ -74,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 history.shift();
             }
             window.requestAnimationFrame(draw);
-        }, 50);
+        },100);
     });
 });
 
