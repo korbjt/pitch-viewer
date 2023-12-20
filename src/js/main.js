@@ -1,4 +1,4 @@
-import { PitchDetector } from 'pitchy';
+import { Autocorrelator, PitchDetector } from 'pitchy';
 
 import * as teoria from 'teoria';
 
@@ -10,35 +10,52 @@ var history = [];
 // detect pitch
 // find closest note based on scale
 
+const maxFreq = 1200;
+const minFreq = 100;
+
 function draw() {
-    if(history.length < 1) {
+    if (history.length < 1) {
         return;
     }
     var canvas = document.getElementById('pitches');
 
-    var ctx = canvas.getContext('2d');  
+    var ctx = canvas.getContext('2d');
     ctx.reset();
-    ctx.lineWidth=2;
+    ctx.lineWidth = 2;
 
-    var segmentSize = (canvas.width/4) / 100;
+    var getY = function (freq) {
+        return canvas.height - (freq * canvas.height / maxFreq);
+    }
+
+    var segmentSize = (canvas.width / 4) / 100;
     var lineStart = (canvas.width / 2) - history.length * segmentSize;
 
-    var grd = ctx.createLinearGradient(canvas.width/4, 0, canvas.width/2, 0);
+    var grd = ctx.createLinearGradient(canvas.width / 4, 0, canvas.width / 2, 0);
     grd.addColorStop(0, 'rgba(0,0,0,0.0)');
     grd.addColorStop(1, 'rgba(0,0,0,0.5)');
     ctx.strokeStyle = grd;
 
+    var lastY = 0;
     ctx.beginPath();
-    var yVal;
     history.forEach((value, i) => {
-        yVal = canvas.height - (value[0] * canvas.height/3000) - 50;
-        ctx.lineTo(lineStart + (i * segmentSize), yVal);
+        if (value[1] > .95 && value[0] > minFreq) {
+            const nextY = getY(value[0]);
+            if (lastY == 0) {
+                ctx.moveTo(lineStart + (i * segmentSize), nextY);
+            } else {
+                ctx.lineTo(lineStart + (i * segmentSize), nextY);
+            }
+            lastY = nextY;
+        } else {
+            ctx.moveTo(lineStart + (i * segmentSize), lastY);
+        }
+
     });
     ctx.stroke();
-    
+
     ctx.beginPath();
-    ctx.arc(canvas.width/2, yVal, 10, 0, 2 * Math.PI);
-    grd = ctx.createRadialGradient(canvas.width/2, yVal, 1, canvas.width/2, yVal, 15);
+    ctx.arc(canvas.width / 2, lastY, 10, 0, 2 * Math.PI);
+    grd = ctx.createRadialGradient(canvas.width / 2, lastY, 1, canvas.width / 2, lastY, 15);
 
     var lastNote = history[history.length - 1];
     if (lastNote[1] > .95) {
@@ -52,9 +69,29 @@ function draw() {
         } else {
             grd.addColorStop(0, 'red');
         }
+
         grd.addColorStop(0.5, 'rgba(0,0,0,0)');
         ctx.fillStyle = grd;
         ctx.fill();
+
+        var barGrad = ctx.createLinearGradient(canvas.width / 4, 0, 3 * canvas.width / 4, 0)
+        barGrad.addColorStop(0, 'rgba(0,0,0,0.0)');
+        barGrad.addColorStop(.25, 'rgba(0,0,0,1.0)');
+        barGrad.addColorStop(.25, 'rgba(0,0,0,1.0)');
+        barGrad.addColorStop(1, 'rgba(0,0,0,0.0)');
+        ctx.strokeStyle = barGrad;
+        ctx.lineWidth = 1;
+
+        var noteY = getY(fromFreq.note.fq());
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 4, noteY);
+        ctx.lineTo(3 * canvas.width / 4, noteY);
+        ctx.stroke();
+
+        ctx.beginPath()
+        ctx.fillStyle = "black";
+        ctx.font = "bold 48px serif";
+        ctx.fillText(`${fromFreq.note.name().toUpperCase()}${fromFreq.note.accidental()}`, 3 * canvas.width / 4 + 5, noteY + 5)
     } else {
         document.getElementById('note').textContent = '';
         document.getElementById('freq').textContent = '';
@@ -62,24 +99,24 @@ function draw() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-     console.log('Hello');
-    navigator.mediaDevices.getUserMedia({audio: true}).then((stream) => {
+    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
         var ctx = new AudioContext({});
-        var analyzer = new AnalyserNode(ctx, {
-            fftSize: 2048,
-        });
+        var analyzer = ctx.createAnalyser();
+        analyzer.minDecibels = -50;
+        analyzer.maxDecibels = -10;
+        analyzer.smoothingTimeConstant = 0.85;
+
         ctx.createMediaStreamSource(stream).connect(analyzer);
         var detector = PitchDetector.forFloat32Array(analyzer.fftSize);
 
         setInterval(() => {
             var buffer = new Float32Array(detector.inputLength);
             analyzer.getFloatTimeDomainData(buffer);
-            history.push(detector.findPitch(buffer, 44100));
-            if(history.length > 100) {
+            history.push(detector.findPitch(buffer, ctx.sampleRate));
+            if (history.length > 100) {
                 history.shift();
             }
             window.requestAnimationFrame(draw);
-        },100);
+        }, 100);
     });
 });
-
