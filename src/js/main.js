@@ -20,6 +20,8 @@ function draw() {
     var canvas = document.getElementById('pitches');
 
     var ctx = canvas.getContext('2d');
+    ctx.canvas.width  = window.innerWidth;
+    ctx.canvas.height = window.innerHeight;
     ctx.reset();
     ctx.lineWidth = 2;
 
