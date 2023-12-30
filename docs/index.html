@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <title>Pitch Viewer</title>
+
+    <meta charset="utf-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" type="text/css" href="/index.css">
+  </head>
+
+  <body>
+    <div id="container">
+      <h1>Pitch Viewer</h1>
+
+      <label for="tonic">Key</label>
+
+      <select name="tonic" id="tonic">
+        <option>A</option>
+
+        <option>B</option>
+
+        <option>C</option>
+
+        <option>D</option>
+
+        <option>E</option>
+
+        <option>F</option>
+
+        <option>G</option>
+
+        <option>Ab</option>
+
+        <option>Bb</option>
+
+        <option>Cb</option>
+
+        <option>Db</option>
+
+        <option>Eb</option>
+
+        <option>Fb</option>
+
+        <option>Gb</option>
+      </select>
+
+      <br>
+
+      <canvas id="pitches" height="300"></canvas>
+    </div>
+
+    <h2 id="freq"></h2>
+
+    <br>
+
+    <h2 id="note"></h2>
+
+    <br>
+
+    <h2 id="cents"></h2>
+
+    <script src="./bundle.js"></script>
+  </body>
+</html>
