@@ -1,8 +1,17 @@
-const ESLintPlugin = require('eslint-webpack-plugin');
+import ESLintPlugin from 'eslint-webpack-plugin';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
-module.exports = {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+export default {
     entry: './src/js/main.js',
-    plugins: [new ESLintPlugin()],
+    plugins: [
+        new ESLintPlugin({
+            configType: 'flat'
+        })
+    ],
     output: {
         path: __dirname + '/dist',
         filename: 'bundle.js'
