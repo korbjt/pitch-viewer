@@ -166,12 +166,12 @@ function draw() {
     ctx.fillStyle = textColor;
     const clefSize = Math.round(targetHeight * 0.16); // 16% of canvas height
     ctx.font = `bold ${clefSize}px serif`;
-    // Position the clef so the G-line (second line from bottom) goes through the curl
-    const clefY = staffY + (2.5 * lineSpacing) + Math.round(targetHeight * 0.018); // Adjust for proper clef positioning
+    // Position the clef so the bottom J hangs below the bottom line
+    const clefY = staffY + (3.75 * lineSpacing) + Math.round(targetHeight * 0.018); // Adjust for proper clef positioning
     ctx.fillText('𝄞', leftMargin + Math.round(targetWidth * 0.008), clefY);
 
-    // Draw bass clef
-    const bassClefY = bassStaffY + (2 * lineSpacing) + Math.round(targetHeight * 0.018);
+    // Draw bass clef with top on the top line
+    const bassClefY = bassStaffY + (2.75 * lineSpacing) + Math.round(targetHeight * 0.018);
     ctx.fillText('𝄢', leftMargin + Math.round(targetWidth * 0.008), bassClefY);
 
     // Draw key signature (sharps/flats)
@@ -224,7 +224,7 @@ function draw() {
     const cometSparkY = getYForNote(currentNoteCents.note);
 
     // Collect recent historical points for the tail (last 20-25 points for longer trail)
-    const maxTailPoints = Math.min(25, history.length);
+    const maxTailPoints = Math.min(50, history.length);
     const tailPoints = [];
 
     // Get valid historical points
@@ -258,55 +258,50 @@ function draw() {
         });
     });
 
-    // Draw the comet tail from oldest to newest (fading out)
-    for (let i = 0; i < tailPoints.length - 1; i++) {
-        const point = tailPoints[i];
-        const nextPoint = tailPoints[i + 1];
-
-        // Determine color based on cents deviation
-        let segmentColor = textColor;
-        if (point.cents > 10) {
-            segmentColor = secondaryColor; // Sharp
-        } else if (point.cents < -10) {
-            segmentColor = accentColor; // Flat
-        } else {
-            segmentColor = primaryColor; // In tune
-        }
-
-        // Fade out as we go back in time (older points are more transparent)
-        const fadeFactor = 1 - (point.age / (tailPoints.length - 1 || 1));
-        const alpha = Math.max(0.05, fadeFactor * 0.9); // Fade from 0.9 to 0.05 for smoother transition
-
-        ctx.strokeStyle = segmentColor;
-        ctx.globalAlpha = alpha;
-        ctx.lineWidth = Math.max(2, Math.round(targetWidth * 0.003) * fadeFactor); // Vary line width with fade
-
-        ctx.beginPath();
-        ctx.moveTo(point.x, point.y);
-        ctx.lineTo(nextPoint.x, nextPoint.y);
-        ctx.stroke();
-    }
-
-    // Connect the most recent tail point to the spark
+    // Draw the comet tail as a single line with gradient
     if (tailPoints.length > 0) {
-        const lastTailPoint = tailPoints[tailPoints.length - 1];
+        // Calculate average Y for gradient
+        const avgY = tailPoints.reduce((sum, p) => sum + p.y, 0) / tailPoints.length;
 
-        // Determine color for connection to spark
-        let connectionColor = textColor;
+        // Create gradient from oldest to newest
+        const minX = tailPoints[0].x;
+        const maxX = sparkX;
+        const gradient = ctx.createLinearGradient(minX, avgY, maxX, avgY);
+
+        // Add color stops for each tail point
+        tailPoints.forEach((point) => {
+            let color = primaryColor;
+            if (point.cents > 10) {
+                color = secondaryColor;
+            } else if (point.cents < -10) {
+                color = accentColor;
+            }
+            const fadeFactor = 1 - (point.age / (tailPoints.length - 1 || 1));
+            const alpha = fadeFactor; // Fade from 1 to 0
+            const rgba = color.replace(/rgb\(([^)]+)\)/, `rgba($1, ${alpha})`);
+            const pos = (point.x - minX) / (maxX - minX);
+            gradient.addColorStop(pos, rgba);
+        });
+
+        // Add stop for spark connection
+        let sparkColor = primaryColor;
         if (currentNoteCents.cents > 10) {
-            connectionColor = secondaryColor;
+            sparkColor = secondaryColor;
         } else if (currentNoteCents.cents < -10) {
-            connectionColor = accentColor;
-        } else {
-            connectionColor = primaryColor;
+            sparkColor = accentColor;
         }
+        gradient.addColorStop(1.0, sparkColor);
 
-        ctx.strokeStyle = connectionColor;
-        ctx.globalAlpha = 1.0; // Full opacity for connection to spark
-        ctx.lineWidth = Math.max(3, Math.round(targetWidth * 0.004)); // Slightly thicker connection line
+        // Draw the path
+        ctx.strokeStyle = gradient;
+        ctx.globalAlpha = 0.5; // Alpha is in the gradient
+        ctx.lineWidth = Math.max(4, Math.round(targetWidth * 0.0025));
 
         ctx.beginPath();
-        ctx.moveTo(lastTailPoint.x, lastTailPoint.y);
+        ctx.moveTo(tailPoints[0].x, tailPoints[0].y);
+        tailPoints.slice(1).forEach(point => {
+            ctx.lineTo(point.x, point.y);
+        });
         ctx.lineTo(sparkX, cometSparkY);
         ctx.stroke();
     }
