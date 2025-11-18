@@ -57,54 +57,36 @@ var history = [];
 // find closest note based on scale
 
 //const maxFreq = 1200;
-const minFreq = 100;
+const minFreq = 20;
 
-function findNoteInScale(scale, note) {
-    if (note.scaleDegree(scale)) {
-        return note;
+function getScaleFrequencies() {
+    const freqs = [];
+    for (let oct = 3; oct <= 6; oct++) {
+        const scale = teoria.scale(teoria.note(currentKey + oct), 'major');
+        freqs.push(...scale.notes().map(note => note.fq()));
     }
-
-    var enharmoics = note.enharmonics();
-    for (let i = 0; i < enharmoics.length; i++) {
-        if (enharmoics[i].scaleDegree(scale) > 0) {
-            return enharmoics[i];
-        }
-    }
-
-    return null;
+    return [...new Set(freqs)].sort((a, b) => a - b); // Unique and sorted
 }
 
 function findFreqInScale(scale, freq) {
-    try {
-        var noteCents = teoria.note.fromFrequency(freq);
-        if (!noteCents || !noteCents.note) {
-            console.warn('Invalid noteCents for frequency:', freq);
-            return null;
+    let noteCents = teoria.note.fromFrequency(freq);
+    if (noteCents && noteCents.note) {
+        return {note: noteCents.note, cents: noteCents.cents};
+    } else {
+        // fallback to closest scale note
+        const scaleFreqs = getScaleFrequencies();
+        let closestFreq = scaleFreqs[0];
+        let minDiff = Math.abs(freq - closestFreq);
+        for (const sf of scaleFreqs) {
+            const diff = Math.abs(freq - sf);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestFreq = sf;
+            }
         }
-
-        var curr = findNoteInScale(scale, noteCents.note);
-        var prev = findNoteInScale(scale, noteCents.note.interval('m-2'));
-        var next = findNoteInScale(scale, noteCents.note.interval('m-2')); // Fixed: was 'm2' but should be 'm-2' for next note?
-
-        if (curr) {
-            return {
-                note: curr,
-                cents: noteCents.cents,
-            };
-        } else if (next) {
-            return {
-                note: next,
-                cents: -100 + noteCents.cents,
-            };
-        } else {
-            return {
-                note: prev,
-                cents: 100 + noteCents.cents,
-            };
-        }
-    } catch (error) {
-        console.error('Error in findFreqInScale:', error, 'freq:', freq);
-        return null;
+        const closestNote = teoria.note.fromFrequency(closestFreq);
+        const cents = Math.round((freq - closestFreq) / closestFreq * 1200);
+        return {note: closestNote, cents: cents};
     }
 }
 
@@ -148,29 +130,36 @@ function draw() {
 
     // Draw custom staff with appropriate line thickness
     const lineSpacing = Math.round(targetHeight * 0.048); // Slightly tighter spacing
-    const staffY = Math.round(canvas.height / 2 - (targetHeight * 0.11)); // Center staff with more room for spark
+    const staffY = Math.round(canvas.height / 2 - 5 * lineSpacing); // Center the grand staff
     const lineWidth = Math.max(2, Math.round(targetWidth * 0.003)); // Scale line width with canvas
 
     ctx.strokeStyle = textColor;
     ctx.lineWidth = lineWidth;
     ctx.lineCap = 'round';
 
-    // Draw staff lines
+    // Draw treble staff lines
     for (let i = 0; i < 5; i++) {
         const y = staffY + (i * lineSpacing);
-        ctx.beginPath();
         ctx.moveTo(leftMargin, y);
         ctx.lineTo(leftMargin + staffWidth, y);
-        ctx.stroke();
+    }
+
+    // Gap between staves for ledger lines
+    const bassStaffY = staffY + 6 * lineSpacing;
+
+    // Draw bass staff lines
+    for (let i = 0; i < 5; i++) {
+        const y = bassStaffY + (i * lineSpacing);
+        ctx.moveTo(leftMargin, y);
+        ctx.lineTo(leftMargin + staffWidth, y);
     }
 
     // Draw bar lines at start and end
     ctx.lineWidth = lineWidth * 1.2; // Slightly thicker for bar lines
-    ctx.beginPath();
     ctx.moveTo(leftMargin, staffY);
-    ctx.lineTo(leftMargin, staffY + (4 * lineSpacing));
+    ctx.lineTo(leftMargin, bassStaffY + 4 * lineSpacing);
     ctx.moveTo(leftMargin + staffWidth, staffY);
-    ctx.lineTo(leftMargin + staffWidth, staffY + (4 * lineSpacing));
+    ctx.lineTo(leftMargin + staffWidth, bassStaffY + 4 * lineSpacing);
     ctx.stroke();
 
     // Draw treble clef properly positioned
@@ -178,42 +167,34 @@ function draw() {
     const clefSize = Math.round(targetHeight * 0.16); // 16% of canvas height
     ctx.font = `bold ${clefSize}px serif`;
     // Position the clef so the G-line (second line from bottom) goes through the curl
-    const clefY = staffY + (3.5 * lineSpacing) + Math.round(targetHeight * 0.018); // Adjust for proper clef positioning
+    const clefY = staffY + (2.5 * lineSpacing) + Math.round(targetHeight * 0.018); // Adjust for proper clef positioning
     ctx.fillText('𝄞', leftMargin + Math.round(targetWidth * 0.008), clefY);
+
+    // Draw bass clef
+    const bassClefY = bassStaffY + (2 * lineSpacing) + Math.round(targetHeight * 0.018);
+    ctx.fillText('𝄢', leftMargin + Math.round(targetWidth * 0.008), bassClefY);
 
     // Draw key signature (sharps/flats)
     drawKeySignature(ctx, tonic, leftMargin + Math.round(targetWidth * 0.067), staffY, lineSpacing, textColor, targetHeight);
 
-    // Custom note positioning for our simple staff
+    // Custom note positioning for grand staff
     var getYForNote = function (n) {
         try {
-            // Snap to nearest staff line or space
-            // Staff lines: E4(64), G4(67), B4(71), D5(74), F5(77)
-            // Spaces: F4(65), A4(69), C5(72), E5(76)
-
             const noteValue = n.midi();
-            const staffLines = [64, 65, 67, 69, 71, 72, 74, 76, 77]; // Lines and main spaces
-
-            // Find the closest staff position
-            let closestPos = 0;
-            let minDistance = Math.abs(noteValue - staffLines[0]);
-
-            for (let i = 1; i < staffLines.length; i++) {
-                const distance = Math.abs(noteValue - staffLines[i]);
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    closestPos = i;
-                }
+            let noteY;
+            if (noteValue >= 60) {
+                // Treble staff: E4 (64) at bottom 4*ls, F5 (77) at top 0
+                // 13 semitones span 4*ls
+                noteY = staffY + 4 * lineSpacing - (noteValue - 64) * (4 * lineSpacing / 13);
+            } else {
+                // Bass staff: G2 (43) at bottom 4*ls, A3 (57) at top 0
+                // 14 semitones span 4*ls
+                noteY = bassStaffY + 4 * lineSpacing - (noteValue - 43) * (4 * lineSpacing / 14);
             }
-
-            // Convert position index to Y coordinate
-            // 0 = bottom line (E4), 8 = top line (F5)
-            const noteY = staffY + (8 - closestPos) * (lineSpacing / 2);
-
             return noteY;
         } catch (error) {
             console.error('Error in getYForNote:', error, 'note:', n);
-            return staffY + (4 * lineSpacing); // Return middle of staff as fallback
+            return staffY + (4 * lineSpacing); // Return middle of treble staff as fallback
         }
     };
 
@@ -340,8 +321,8 @@ function draw() {
         var noteCents = findFreqInScale(scale, lastNote[0]);
         if (noteCents && noteCents.note) {
             var sparkY = getYForNote(noteCents.note); // Calculate spark Y position
-
             const sparkRadius = Math.round(targetWidth * 0.04); // 4% of canvas width - larger proportion
+            sparkY = Math.max(sparkRadius, Math.min(canvas.height - 10, sparkY)); // Clamp to keep spark visible
             var grd = ctx.createRadialGradient(lineEnd, sparkY, 1, lineEnd, sparkY, sparkRadius);
 
             // Use color for spark center
@@ -441,9 +422,6 @@ function loadKey() {
 let debugMode = false;
 let debugPanelVisible = false;
 let debugFrequency = 440; // Default A4
-let debugNote = 'A';
-let debugAccidental = '';
-let debugOctave = 4;
 
 function enableDebugMode() {
     debugMode = true;
@@ -467,41 +445,9 @@ function hideDebugPanel() {
     localStorage.setItem('debugPanelVisible', 'false');
 }
 
-function updateDebugFrequency() {
-    // Calculate frequency from note, accidental, and octave
-    const noteName = debugNote + debugAccidental + debugOctave;
-    const note = teoria.note(noteName);
-    debugFrequency = note.fq();
-    const frequencyInput = document.getElementById('debug-frequency');
-    const frequencyDisplay = document.getElementById('frequency-display');
-    if (frequencyInput) {
-        frequencyInput.value = debugFrequency;
-    }
-    if (frequencyDisplay) {
-        frequencyDisplay.textContent = debugFrequency.toFixed(1) + ' Hz';
-    }
-}
 
-function updateDebugFromFrequency() {
-    try {
-        // Find the closest note to the frequency
-        const note = teoria.note.fromFrequency(debugFrequency);
-        if (note && typeof note.name === 'function') {
-            debugNote = note.name();
-            debugAccidental = note.accidental ? note.accidental() : '';
-            debugOctave = note.octave ? note.octave() : 4;
 
-            // Update UI
-            document.getElementById('debug-note').value = debugNote;
-            document.getElementById('debug-accidental').value = debugAccidental;
-            document.getElementById('debug-octave').textContent = debugOctave;
-        } else {
-            console.warn('Invalid note object from teoria.note.fromFrequency:', note);
-        }
-    } catch (error) {
-        console.error('Error in updateDebugFromFrequency:', error);
-    }
-}
+
 
 // Modal functionality
 function openSettingsModal() {
@@ -616,7 +562,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Initialize debug controls
-    updateDebugFrequency();
     const frequencyInput = document.getElementById('debug-frequency');
     const frequencyDisplay = document.getElementById('frequency-display');
     if (frequencyInput) {
@@ -685,10 +630,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Debug controls
     const debugToggle = document.getElementById('debug-toggle');
-    const debugNoteSelect = document.getElementById('debug-note');
-    const debugAccidentalSelect = document.getElementById('debug-accidental');
-    const octaveDownBtn = document.getElementById('octave-down');
-    const octaveUpBtn = document.getElementById('octave-up');
     const debugFrequencyInput = document.getElementById('debug-frequency');
 
     if (debugToggle) {
@@ -701,49 +642,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (debugNoteSelect) {
-        debugNoteSelect.addEventListener('change', (event) => {
-            debugNote = event.target.value;
-            updateDebugFrequency();
-        });
-    }
-
-    if (debugAccidentalSelect) {
-        debugAccidentalSelect.addEventListener('change', (event) => {
-            debugAccidental = event.target.value;
-            updateDebugFrequency();
-        });
-    }
-
-    if (octaveDownBtn) {
-        octaveDownBtn.addEventListener('click', () => {
-            if (debugOctave > 1) {
-                debugOctave--;
-                document.getElementById('debug-octave').textContent = debugOctave;
-                updateDebugFrequency();
-            }
-        });
-    }
-
-    if (octaveUpBtn) {
-        octaveUpBtn.addEventListener('click', () => {
-            if (debugOctave < 8) {
-                debugOctave++;
-                document.getElementById('debug-octave').textContent = debugOctave;
-                updateDebugFrequency();
-            }
-        });
-    }
-
     if (debugFrequencyInput) {
         debugFrequencyInput.addEventListener('input', (event) => {
             const freq = parseFloat(event.target.value);
-            if (!isNaN(freq) && freq >= 80 && freq <= 1000) {
+            if (!isNaN(freq) && freq >= 20 && freq <= 1000) {
                 debugFrequency = freq;
                 if (frequencyDisplay) {
                     frequencyDisplay.textContent = freq.toFixed(1) + ' Hz';
                 }
-                updateDebugFromFrequency();
             }
         });
     }
