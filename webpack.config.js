@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export default {
-    entry: './src/js/main.js',
+    entry: './src/js/main.ts',
     plugins: [
         new ESLintPlugin({
             configType: 'flat'
@@ -18,12 +18,12 @@ export default {
     },
     module: {
         rules: [{
-            test: /\.m?js$/,
+            test: /\.tsx?$/,
             exclude: /node_modules/,
             use: {
-                loader: 'babel-loader',
+                loader: 'ts-loader',
                 options: {
-                    presets: ['@babel/preset-env']
+                    transpileOnly: true
                 }
             }
         }]

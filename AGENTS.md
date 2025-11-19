@@ -20,14 +20,18 @@
 
 ## Code Style Guidelines
 
-### JavaScript
+### TypeScript
 - ES modules with import/export syntax
+- TypeScript 5.x with strict mode enabled
+- Target ES2020 for modern browser support
 - Single quotes for strings
 - Always use semicolons
 - ESLint: flat config with recommended rules + custom (semi: always, quotes: single)
 - Variable declarations: `const`/`let` preferred over `var`
 - Function declarations: traditional or arrow functions as appropriate
-- Naming: camelCase for variables/functions, PascalCase for classes
+- Naming: camelCase for variables/functions, PascalCase for classes/interfaces
+- Explicit types for function parameters and return values
+- Interface definitions for complex objects (e.g., note structures)
 - Modal functionality with proper accessibility (ARIA attributes, keyboard navigation)
 - CSS custom properties for dynamic UI updates
 - localStorage for user preferences (theme, key)
@@ -53,10 +57,11 @@
 
 ### General
 - ES modules: "type": "module" in package.json
-- No TypeScript - plain JavaScript only
+- TypeScript with strict mode and ES2020 target
+- Modular architecture: separate modules for pitch detection, staff rendering, gradient indicators, settings modal, and theme management
 - No test framework - manual testing approach
-- Dependencies: pitchy, teoria, vexflow for music theory/pitch detection
-- Modern tooling: sass (replaces node-sass), webpack 5, ESLint 9, Stylelint flat config
+- Dependencies: pitchy (with custom types), teoria (with custom types), vexflow (with @types/vexflow)
+- Modern tooling: sass, webpack 5 with ts-loader, ESLint 9, Stylelint flat config, TypeScript 5.x
 - Responsive design supporting mobile devices
 - Automatic dark/light mode based on user preference
 - Manual theme override in settings (light/dark/auto)
