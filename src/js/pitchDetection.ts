@@ -1,6 +1,6 @@
 import { PitchDetector } from 'pitchy';
 import * as teoria from 'teoria';
-import { TeoriaNote, TeoriaScale } from './types.ts';
+import { TeoriaNote, TeoriaScale, NoteCents } from './types.ts';
 
 export let history: [number, number][] = [];
 
@@ -23,26 +23,33 @@ export function getScaleFrequencies(currentKey: string): number[] {
     return [...new Set(freqs)].sort((a, b) => a - b); // Unique and sorted
 }
 
-export function findFreqInScale(scale: TeoriaScale, freq: number): { note: TeoriaNote; cents: number } | null {
-    const noteCents = teoria.note.fromFrequency(freq);
-    if (noteCents && noteCents.note) {
-        return { note: noteCents.note, cents: noteCents.cents };
-    } else {
-        // fallback to closest scale note
-        const scaleFreqs = getScaleFrequencies(scale.notes()[0].name().replace(/\d/, '')); // rough key
-        let closestFreq = scaleFreqs[0];
-        let minDiff = Math.abs(freq - closestFreq);
-        for (const sf of scaleFreqs) {
-            const diff = Math.abs(freq - sf);
-            if (diff < minDiff) {
-                minDiff = diff;
-                closestFreq = sf;
-            }
+export function findFreqInScale(scale: TeoriaScale, freq: number): NoteCents | null {
+    // Find the closest note in the scale
+    const scaleFreqs = getScaleFrequencies(scale.notes()[0].name().replace(/\d/, ''));
+    let closestFreq = scaleFreqs[0];
+    let minDiff = Math.abs(freq - closestFreq);
+    for (const sf of scaleFreqs) {
+        const diff = Math.abs(freq - sf);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closestFreq = sf;
         }
-        const closestNote = teoria.note.fromFrequency(closestFreq);
-        const cents = Math.round((freq - closestFreq) / closestFreq * 1200);
-        return { note: closestNote, cents };
     }
+    const closestResult = teoria.note.fromFrequency(closestFreq);
+    if (!closestResult || !closestResult.note) return null;
+    const targetNote = closestResult.note;
+    const cents = Math.round((freq - closestFreq) / closestFreq * 1200);
+
+    // Determine if the detected note is in the scale
+    const noteCents = teoria.note.fromFrequency(freq);
+    if (!noteCents || !noteCents.note) return null;
+
+    const detectedNote = noteCents.note;
+    const detectedNoteName = detectedNote.name();
+    const scaleNoteNames = scale.notes().map(n => n.name());
+    const inKey = scaleNoteNames.includes(detectedNoteName);
+
+    return { detectedNote, targetNote, cents, inKey };
 }
 
 export function enableDebugMode(): void {
