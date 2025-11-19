@@ -1,7 +1,13 @@
-import { TeoriaNote } from './types.ts';
+import { TeoriaNote, NoteCents } from './types.ts';
 
-export function updateNoteDisplay(lastNote: [number, number] | undefined, noteCents: { note: TeoriaNote; cents: number } | null): void {
+export function updateNoteDisplay(lastNote: [number, number] | undefined, noteCents: NoteCents | null): void {
     if (lastNote && lastNote[1] > 0.95 && noteCents) {
+        // Update the gradient color based on key awareness
+        const computedStyle = getComputedStyle(document.documentElement);
+        const primary = computedStyle.getPropertyValue('--primary-color').trim();
+        const secondary = computedStyle.getPropertyValue('--secondary-color').trim();
+        document.documentElement.style.setProperty('--gradient-primary', noteCents.inKey ? primary : secondary);
+
         // Update the HTML gradient indicator
         const centsGradientElement = document.getElementById('cents-gradient');
         if (centsGradientElement) {
@@ -18,9 +24,9 @@ export function updateNoteDisplay(lastNote: [number, number] | undefined, noteCe
         const centsElement = document.getElementById('cents');
 
         if (noteNameElement) {
-            const accidental = noteCents.note.accidental();
+            const accidental = noteCents.detectedNote.accidental();
             const accidentalSymbol = accidental === 'b' ? '♭' : accidental === '#' ? '♯' : '';
-            noteNameElement.textContent = `${noteCents.note.name()}${accidentalSymbol}`;
+            noteNameElement.textContent = `${noteCents.detectedNote.name()}${accidentalSymbol}`;
         }
 
         if (frequencyElement) {

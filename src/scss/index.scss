@@ -29,6 +29,7 @@ body {
     --primary-color: #{$primary};
     --secondary-color: #{$secondary};
     --accent-color: #{$accent};
+    --gradient-primary: var(--primary-color);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -284,7 +285,7 @@ body {
     border-radius: 12px;
     background: linear-gradient(to right,
         var(--accent-color) 0%,
-        var(--primary-color) 50%,
+        var(--gradient-primary) 50%,
         var(--secondary-color) 100%);
     position: relative;
     overflow: hidden;

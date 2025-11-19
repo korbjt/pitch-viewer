@@ -21,6 +21,13 @@ export interface TeoriaScale {
   notes(): TeoriaNote[];
 }
 
+export interface NoteCents {
+  detectedNote: TeoriaNote;
+  targetNote: TeoriaNote;
+  cents: number;
+  inKey: boolean;
+}
+
 declare module 'teoria' {
   export function note(name: string): TeoriaNote;
   export function scale(note: TeoriaNote, type: string): TeoriaScale;

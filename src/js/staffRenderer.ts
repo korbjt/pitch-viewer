@@ -1,5 +1,5 @@
 import * as teoria from 'teoria';
-import { TeoriaNote, TeoriaScale } from './types.ts';
+import { TeoriaNote, TeoriaScale, NoteCents } from './types.ts';
 import { findFreqInScale, history } from './pitchDetection.ts';
 import { updateNoteDisplay } from './gradientIndicator.ts';
 
@@ -25,11 +25,11 @@ function drawKeySignature(
     const count = isSharp ? sharpIndex : (flatIndex !== -1 ? flatIndex : 0);
     if (count === 0) return;
 
-    // Positions in half-lines from bottom line (0 = bottom line)
-    const trebleSharps = [0.5, 3.5, -0.5, 2.5, 5.5, 1.5, 4.5];  // F C G D A E B
-    const bassSharps   = [2.5, 5.5, 1.5, 4.5, 7.5, 3.5, 6.5];  // F C G D A E B (octave lower pattern)
-    const trebleFlats  = [3.5, 0.5, 4.5, 1.5, 5.5, 2.5, 6.5];  // B E A D G C F (reversed sharp positions +7)
-    const bassFlats    = [5.5, 2.5, 6.5, 3.5, 7.5, 4.5, 8.5];  // B E A D G C F (octave lower)
+    // Positions in half-lines from bottom line (0 = bottom line), inverted for correct pitch positioning
+    const trebleSharps = [7.5, 4.5, 8.5, 5.5, 2.5, 6.5, 3.5];  // F C G D A E B
+    const bassSharps   = [5.5, 2.5, 6.5, 3.5, 0.5, 4.5, 1.5];  // F C G D A E B (octave lower pattern)
+    const trebleFlats  = [4.5, 7.5, 3.5, 6.5, 2.5, 5.5, 1.5];  // B E A D G C F (reversed sharp positions +7)
+    const bassFlats    = [2.5, 5.5, 1.5, 4.5, 0.5, 3.5, -0.5];  // B E A D G C F (octave lower)
     
     const posArray = isSharp
         ? (clef === 'treble' ? trebleSharps : bassSharps)
@@ -50,21 +50,29 @@ function drawKeySignature(
 
 function getYForNote(note: TeoriaNote, staffY: number, bassStaffY: number, lineSpacing: number): number {
     try {
-        const noteValue = note.midi();
+        // Snap to natural note position by adjusting midi for accidentals
+        let noteValue = note.midi();
+        const accidental = note.accidental();
+        if (accidental === '#') {
+            noteValue -= 1;
+        } else if (accidental === 'b') {
+            noteValue += 1;
+        }
+        // noteValue is now the midi of the natural note
         let noteY: number;
         if (noteValue >= 60) {
-            // Treble staff: E4 (64) at bottom 4*ls, F5 (77) at top 0
+            // Treble staff: E4 (64) at bottom, F5 (77) at top
             // 13 semitones span 4*ls
             noteY = staffY + 4 * lineSpacing - (noteValue - 64) * (4 * lineSpacing / 13);
         } else {
-            // Bass staff: G2 (43) at bottom 4*ls, A3 (57) at top 0
+            // Bass staff: G2 (43) at bottom, A3 (57) at top
             // 14 semitones span 4*ls
             noteY = bassStaffY + 4 * lineSpacing - (noteValue - 43) * (4 * lineSpacing / 14);
         }
         return noteY;
     } catch (error) {
         console.error('Error in getYForNote:', error, 'note:', note);
-        return staffY + (4 * lineSpacing); // Return middle of treble staff as fallback
+        return staffY + 2 * lineSpacing; // Return middle of treble staff as fallback
     }
 }
 
@@ -188,14 +196,14 @@ export function draw(currentKey: string): void {
         updateNoteDisplay(lastValue, null);
         return;
     }
-    const cometSparkY = getYForNote(currentNoteCents.note, staffY, bassStaffY, lineSpacing);
+    const cometSparkY = getYForNote(currentNoteCents.targetNote, staffY, bassStaffY, lineSpacing);
 
     // Collect recent historical points for the tail (last 50 points for longer trail)
     const maxTailPoints = Math.min(50, history.length);
-    const tailPoints: { x: number; y: number; cents: number; age: number }[] = [];
+    const tailPoints: { x: number; y: number; cents: number; age: number; inKey: boolean }[] = [];
 
     // Get valid historical points
-    const validHistoryPoints: { cents: number; note: TeoriaNote; index: number }[] = [];
+    const validHistoryPoints: { cents: number; note: TeoriaNote; index: number; inKey: boolean }[] = [];
     for (let i = Math.max(0, history.length - maxTailPoints); i < history.length; i++) {
         const value = history[i];
         if (value[1] > 0.95 && value[0] > 20) {
@@ -203,8 +211,9 @@ export function draw(currentKey: string): void {
             if (historicalNoteCents) {
                 validHistoryPoints.push({
                     cents: historicalNoteCents.cents,
-                    note: historicalNoteCents.note,
-                    index: i
+                    note: historicalNoteCents.targetNote,
+                    index: i,
+                    inKey: historicalNoteCents.inKey
                 });
             }
         }
@@ -221,7 +230,8 @@ export function draw(currentKey: string): void {
             x,
             y,
             cents: point.cents,
-            age: validHistoryPoints.length - idx - 1 // Age from 0 (newest) to N-1 (oldest)
+            age: validHistoryPoints.length - idx - 1, // Age from 0 (newest) to N-1 (oldest)
+            inKey: point.inKey
         });
     });
 
@@ -238,10 +248,14 @@ export function draw(currentKey: string): void {
         // Add color stops for each tail point
         tailPoints.forEach((point) => {
             let color = primaryColor;
-            if (point.cents > 10) {
-                color = secondaryColor;
-            } else if (point.cents < -10) {
-                color = accentColor;
+            if (!point.inKey || Math.abs(point.cents) > 10) {
+                if (point.cents > 10) {
+                    color = secondaryColor;
+                } else if (point.cents < -10) {
+                    color = accentColor;
+                } else {
+                    color = secondaryColor; // out of key in tune
+                }
             }
             const fadeFactor = 1 - (point.age / (tailPoints.length - 1 || 1));
             const alpha = fadeFactor; // Fade from 1 to 0
@@ -279,23 +293,27 @@ export function draw(currentKey: string): void {
     ctx.globalAlpha = originalGlobalAlpha;
 
     const lastNote = history[history.length - 1];
-    let noteCents: { note: TeoriaNote; cents: number } | null = null;
+    let noteCents: NoteCents | null = null;
     if (lastNote[1] > 0.95) {
         noteCents = findFreqInScale(scale, lastNote[0]);
         if (noteCents) {
-            const sparkY = getYForNote(noteCents.note, staffY, bassStaffY, lineSpacing); // Calculate spark Y position
+            const sparkY = getYForNote(noteCents.targetNote, staffY, bassStaffY, lineSpacing); // Calculate spark Y position
             const sparkRadius = Math.round(targetWidth * 0.04); // 4% of canvas width - larger proportion
             const clampedSparkY = Math.max(sparkRadius, Math.min(canvas.height - 10, sparkY)); // Clamp to keep spark visible
             const grd = ctx.createRadialGradient(lineEnd, clampedSparkY, 1, lineEnd, clampedSparkY, sparkRadius);
 
             // Use color for spark center
-            if (noteCents.cents > 10) {
-                grd.addColorStop(0, secondaryColor);
-            } else if (noteCents.cents < -10) {
-                grd.addColorStop(0, accentColor);
-            } else {
-                grd.addColorStop(0, primaryColor);
+            let sparkColor = primaryColor;
+            if (!noteCents.inKey || Math.abs(noteCents.cents) > 10) {
+                if (noteCents.cents > 10) {
+                    sparkColor = secondaryColor;
+                } else if (noteCents.cents < -10) {
+                    sparkColor = accentColor;
+                } else {
+                    sparkColor = secondaryColor;
+                }
             }
+            grd.addColorStop(0, sparkColor);
 
             ctx.beginPath();
             ctx.arc(lineEnd, clampedSparkY, sparkRadius, 0, 2 * Math.PI);
