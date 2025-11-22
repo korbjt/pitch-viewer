@@ -25,11 +25,11 @@ function drawKeySignature(
     const count = isSharp ? sharpIndex : (flatIndex !== -1 ? flatIndex : 0);
     if (count === 0) return;
 
-    // Positions in half-lines from bottom line (0 = bottom line), inverted for correct pitch positioning
-    const trebleSharps = [7.5, 4.5, 8.5, 5.5, 2.5, 6.5, 3.5];  // F C G D A E B
-    const bassSharps   = [5.5, 2.5, 6.5, 3.5, 0.5, 4.5, 1.5];  // F C G D A E B (octave lower pattern)
-    const trebleFlats  = [4.5, 7.5, 3.5, 6.5, 2.5, 5.5, 1.5];  // B E A D G C F (reversed sharp positions +7)
-    const bassFlats    = [2.5, 5.5, 1.5, 4.5, 0.5, 3.5, -0.5];  // B E A D G C F (octave lower)
+    // Positions in half-lines from bottom line (0 = bottom line)
+    const trebleSharps = [0.5, 3.5, -0.5, 2.5, 5.5, 1.5, 4.5];  // F C G D A E B
+    const bassSharps   = [2.5, 5.5, 1.5, 4.5, 7.5, 3.5, 6.5];  // F C G D A E B (octave lower pattern)
+    const trebleFlats  = [3.5, 0.5, 4.5, 1.5, 5.5, 2.5, 6.5];  // B E A D G C F (reversed sharp positions +7)
+    const bassFlats    = [5.5, 2.5, 6.5, 3.5, 7.5, 4.5, 8.5];  // B E A D G C F (octave lower)
     
     const posArray = isSharp
         ? (clef === 'treble' ? trebleSharps : bassSharps)
